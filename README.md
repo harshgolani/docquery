@@ -19,12 +19,12 @@ RAG-powered PDF Q&A app. Upload a document, ask questions, get answers with sour
 
 ## Architecture
 
-Browser → Netlify (React)
-↓
-Render (FastAPI)
-↓         ↓         ↓
-Voyage AI   ChromaDB   Anthropic
-(embeddings) (vectors)  (answers)
+Browser → Netlify (React) → Render (FastAPI)
+
+The FastAPI backend calls three external services:
+- Voyage AI — generates embeddings for chunks and questions
+- ChromaDB — stores and retrieves vectors
+- Anthropic Claude — generates answers from retrieved context
 
 ## Run locally
 
