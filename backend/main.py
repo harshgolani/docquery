@@ -8,10 +8,12 @@ app = FastAPI(title="Docquery API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["https://docquery-app.netlify.app"],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type"],
 )
+
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 class QuestionRequest(BaseModel):
@@ -40,8 +42,11 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
     file_bytes = await file.read()
-    doc_id = str(uuid.uuid4())
 
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB")
+
+    doc_id = str(uuid.uuid4())
     chunk_count = ingest_document(doc_id, file.filename, file_bytes)
 
     return {
@@ -53,6 +58,8 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.post("/ask", response_model=QuestionResponse)
 def ask_question(request: QuestionRequest):
+    if len(request.question) > 1000:
+        raise HTTPException(status_code=400, detail="Question too long. Maximum 1000 characters")
     try:
         result = query_document(request.doc_id, request.question)
         return result
