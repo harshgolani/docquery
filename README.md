@@ -59,3 +59,11 @@ npm run dev
 - **Filename stored in collection metadata** — document registry rebuilds correctly after restart
 - **Session-based chat history** — in-memory only, no database required for Phase 1
 - **10MB file size limit** — prevents oversized uploads crashing the free tier server
+
+## Security
+
+- CORS restricted to Netlify frontend URL
+- 10MB file size limit on uploads
+- 1000 character limit on questions
+- Rate limiting: 5 uploads/hour and 20 questions/hour per IP
+- API keys stored as environment variables, never in code

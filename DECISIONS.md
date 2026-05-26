@@ -31,3 +31,7 @@ Open CORS (`allow_origins=["*"]`) is fine for local development but exposes the 
 ## UUID for doc_id
 
 Guaranteed unique, no collision risk, no sanitization needed. Filename-based IDs would require handling duplicates, spaces, and special characters. ChromaDB collection names have character restrictions that UUIDs naturally satisfy.
+
+## Rate Limiting — slowapi
+
+Added per-IP rate limiting using slowapi (thin wrapper around the limits library). 5 uploads/hour and 20 questions/hour per IP. Prevents API abuse from portfolio visitors exhausting Voyage AI and Anthropic token quotas. Zero RAM overhead — in-memory tracking, no Redis required for this scale.
