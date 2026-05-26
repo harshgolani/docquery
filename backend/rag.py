@@ -11,15 +11,17 @@ load_dotenv()
 # Load embedding model once at startup
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# In-memory ChromaDB — documents live for the duration of the server session
-chroma_client = chromadb.EphemeralClient()
+# Persistent ChromaDB — documents survive server restarts
+chroma_client = chromadb.PersistentClient(path="chroma_db")
 
 # Anthropic client
 anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
+# In-memory document registry: {doc_id: {"filename": str, "chunks": int}}
+document_registry: dict = {}
+
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extract all text from a PDF file."""
     reader = PdfReader(io.BytesIO(file_bytes))
     text = ""
     for page in reader.pages:
@@ -28,7 +30,6 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
-    """Split text into overlapping chunks."""
     words = text.split()
     chunks = []
     for i in range(0, len(words), chunk_size - overlap):
@@ -38,8 +39,7 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]
     return chunks
 
 
-def ingest_document(doc_id: str, file_bytes: bytes) -> int:
-    """Extract, chunk, embed and store a PDF. Returns chunk count."""
+def ingest_document(doc_id: str, filename: str, file_bytes: bytes) -> int:
     text = extract_text_from_pdf(file_bytes)
     chunks = chunk_text(text)
 
@@ -53,11 +53,22 @@ def ingest_document(doc_id: str, file_bytes: bytes) -> int:
         ids=[f"{doc_id}_chunk_{i}" for i in range(len(chunks))]
     )
 
+    document_registry[doc_id] = {
+        "filename": filename,
+        "chunks": len(chunks)
+    }
+
     return len(chunks)
 
 
+def get_all_documents() -> list[dict]:
+    return [
+        {"doc_id": doc_id, **meta}
+        for doc_id, meta in document_registry.items()
+    ]
+
+
 def query_document(doc_id: str, question: str, n_results: int = 4) -> dict:
-    """Retrieve relevant chunks and generate an answer using Claude."""
     collection = chroma_client.get_collection(name=doc_id)
 
     question_embedding = embedding_model.encode(question).tolist()
@@ -91,9 +102,9 @@ Be concise and accurate.""",
 
 
 def delete_document(doc_id: str) -> bool:
-    """Delete a document collection from ChromaDB."""
     try:
         chroma_client.delete_collection(name=doc_id)
+        document_registry.pop(doc_id, None)
         return True
     except Exception:
         return False

@@ -2,7 +2,7 @@ import uuid
 from fastapi import FastAPI, UploadFile, File, HTTPException #type: ignore
 from fastapi.middleware.cors import CORSMiddleware #type: ignore
 from pydantic import BaseModel #type: ignore
-from rag import ingest_document, query_document, delete_document
+from rag import ingest_document, query_document, delete_document, get_all_documents
 
 app = FastAPI(title="Docquery API")
 
@@ -29,6 +29,11 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/documents")
+def list_documents():
+    return get_all_documents()
+
+
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
@@ -37,7 +42,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     file_bytes = await file.read()
     doc_id = str(uuid.uuid4())
 
-    chunk_count = ingest_document(doc_id, file_bytes)
+    chunk_count = ingest_document(doc_id, file.filename, file_bytes)
 
     return {
         "doc_id": doc_id,
