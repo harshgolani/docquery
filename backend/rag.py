@@ -54,7 +54,7 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]
 
 def embed(texts: list[str]) -> list[list[float]]:
     """Embed a list of texts using Voyage AI."""
-    result = voyage_client.embed(texts, model="voyage-3-lite")
+    result = voyage_client.embed(texts, model="voyage-4-lite")
     return result.embeddings
 
 
