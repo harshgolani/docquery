@@ -1,10 +1,17 @@
 import uuid
-from fastapi import FastAPI, UploadFile, File, HTTPException #type: ignore
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request #type: ignore
 from fastapi.middleware.cors import CORSMiddleware #type: ignore
 from pydantic import BaseModel #type: ignore
+from slowapi import Limiter, _rate_limit_exceeded_handler #type: ignore
+from slowapi.util import get_remote_address #type: ignore
+from slowapi.errors import RateLimitExceeded #type: ignore
 from rag import ingest_document, query_document, delete_document, get_all_documents
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(title="Docquery API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,7 +44,8 @@ def list_documents():
 
 
 @app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+@limiter.limit("5/hour")
+async def upload_pdf(request: Request, file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
@@ -57,11 +65,12 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 
 @app.post("/ask", response_model=QuestionResponse)
-def ask_question(request: QuestionRequest):
-    if len(request.question) > 1000:
+@limiter.limit("20/hour")
+async def ask_question(request: Request, body: QuestionRequest):
+    if len(body.question) > 1000:
         raise HTTPException(status_code=400, detail="Question too long. Maximum 1000 characters")
     try:
-        result = query_document(request.doc_id, request.question)
+        result = query_document(body.doc_id, body.question)
         return result
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Document not found or error: {str(e)}")

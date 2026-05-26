@@ -6,3 +6,4 @@ voyageai
 chromadb
 anthropic
 python-dotenv
+slowapi
