@@ -3,7 +3,7 @@ import Sidebar from './components/Sidebar'
 import Chat from './components/Chat'
 import './App.css'
 
-const API = 'http://localhost:8000'
+const API = 'https://docquery-backend-o8sh.onrender.com'
 
 export default function App() {
   const [documents, setDocuments] = useState([])
