@@ -2,23 +2,36 @@ import os
 import io
 from dotenv import load_dotenv #type: ignore
 from pypdf import PdfReader #type: ignore
-from sentence_transformers import SentenceTransformer #type: ignore
 import chromadb #type: ignore
 import anthropic #type: ignore
+import voyageai #type: ignore
 
 load_dotenv()
 
-# Load embedding model once at startup
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+# Voyage AI client for embeddings
+voyage_client = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
 
-# Persistent ChromaDB — documents survive server restarts
+# Persistent ChromaDB
 chroma_client = chromadb.PersistentClient(path="chroma_db")
 
 # Anthropic client
 anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-# In-memory document registry: {doc_id: {"filename": str, "chunks": int}}
+# In-memory document registry — rebuilt from ChromaDB on startup
 document_registry: dict = {}
+
+
+def _rebuild_registry():
+    """Rebuild document registry from ChromaDB collections on startup."""
+    collections = chroma_client.list_collections()
+    for col in collections:
+        metadata = col.metadata or {}
+        document_registry[col.name] = {
+            "filename": metadata.get("filename", "Unknown"),
+            "chunks": col.count()
+        }
+
+_rebuild_registry()
 
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
@@ -39,13 +52,23 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]
     return chunks
 
 
+def embed(texts: list[str]) -> list[list[float]]:
+    """Embed a list of texts using Voyage AI."""
+    result = voyage_client.embed(texts, model="voyage-3-lite")
+    return result.embeddings
+
+
 def ingest_document(doc_id: str, filename: str, file_bytes: bytes) -> int:
     text = extract_text_from_pdf(file_bytes)
     chunks = chunk_text(text)
 
-    collection = chroma_client.get_or_create_collection(name=doc_id)
+    # Store filename in collection metadata so it survives restart
+    collection = chroma_client.get_or_create_collection(
+        name=doc_id,
+        metadata={"filename": filename}
+    )
 
-    embeddings = embedding_model.encode(chunks).tolist()
+    embeddings = embed(chunks)
 
     collection.add(
         documents=chunks,
@@ -71,7 +94,7 @@ def get_all_documents() -> list[dict]:
 def query_document(doc_id: str, question: str, n_results: int = 4) -> dict:
     collection = chroma_client.get_collection(name=doc_id)
 
-    question_embedding = embedding_model.encode(question).tolist()
+    question_embedding = embed([question])[0]
 
     results = collection.query(
         query_embeddings=[question_embedding],
