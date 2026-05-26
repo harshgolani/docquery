@@ -1,122 +1,120 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useState, useEffect } from 'react'
+import Sidebar from './components/Sidebar'
+import Chat from './components/Chat'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+const API = 'http://localhost:8000'
+
+export default function App() {
+  const [documents, setDocuments] = useState([])
+  const [activeDocId, setActiveDocId] = useState(null)
+  const [chatHistory, setChatHistory] = useState({})
+  const [isUploading, setIsUploading] = useState(false)
+  const [isAsking, setIsAsking] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
+  const [askError, setAskError] = useState(null)
+
+  useEffect(() => {
+    fetch(`${API}/documents`)
+      .then(r => r.json())
+      .then(setDocuments)
+      .catch(() => {})
+  }, [])
+
+  async function handleUpload(file) {
+    setIsUploading(true)
+    setUploadError(null)
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const r = await fetch(`${API}/upload`, { method: 'POST', body: form })
+      if (!r.ok) {
+        const err = await r.json()
+        throw new Error(err.detail || 'Upload failed')
+      }
+      const doc = await r.json()
+      setDocuments(prev => [...prev, doc])
+      setActiveDocId(doc.doc_id)
+    } catch (e) {
+      setUploadError(e.message)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  async function handleDelete(docId) {
+    await fetch(`${API}/document/${docId}`, { method: 'DELETE' })
+    setDocuments(prev => prev.filter(d => d.doc_id !== docId))
+    if (activeDocId === docId) setActiveDocId(null)
+    setChatHistory(prev => {
+      const next = { ...prev }
+      delete next[docId]
+      return next
+    })
+  }
+
+  async function handleAsk(question) {
+    setIsAsking(true)
+    setAskError(null)
+    setChatHistory(prev => ({
+      ...prev,
+      [activeDocId]: [
+        ...(prev[activeDocId] || []),
+        { role: 'user', content: question },
+      ],
+    }))
+    try {
+      const r = await fetch(`${API}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_id: activeDocId, question }),
+      })
+      if (!r.ok) {
+        const err = await r.json()
+        throw new Error(err.detail || 'Request failed')
+      }
+      const { answer, sources } = await r.json()
+      setChatHistory(prev => ({
+        ...prev,
+        [activeDocId]: [
+          ...(prev[activeDocId] || []),
+          { role: 'assistant', content: answer, sources },
+        ],
+      }))
+    } catch (e) {
+      setAskError(e.message)
+      setChatHistory(prev => ({
+        ...prev,
+        [activeDocId]: (prev[activeDocId] || []).slice(0, -1),
+      }))
+    } finally {
+      setIsAsking(false)
+    }
+  }
+
+  const activeDoc = documents.find(d => d.doc_id === activeDocId) || null
+  const messages = activeDocId ? (chatHistory[activeDocId] || []) : []
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <div className="app-layout">
+      <Sidebar
+        documents={documents}
+        activeDocId={activeDocId}
+        isUploading={isUploading}
+        uploadError={uploadError}
+        onSelect={setActiveDocId}
+        onUpload={handleUpload}
+        onDelete={handleDelete}
+      />
+      <main className="main">
+        <Chat
+          activeDoc={activeDoc}
+          messages={messages}
+          isAsking={isAsking}
+          askError={askError}
+          onAsk={handleAsk}
+        />
+      </main>
+    </div>
   )
 }
-
-export default App
