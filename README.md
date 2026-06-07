@@ -67,3 +67,23 @@ npm run dev
 - 1000 character limit on questions
 - Rate limiting: 5 uploads/hour and 20 questions/hour per IP
 - API keys stored as environment variables, never in code
+
+## Evaluation
+
+RAG pipeline evaluated using a custom LLM-as-judge eval suite.
+
+| Metric | Score |
+|--------|-------|
+| Faithfulness | 1.0 |
+| Answer Relevancy | 1.0 |
+
+- **Faithfulness** — measures whether answers are grounded in retrieved context, not hallucinated
+- **Answer Relevancy** — measures whether answers address the question asked
+- Judge model: Claude Haiku
+- Test cases: 10 question/answer pairs with ground truth
+
+Run evals:
+```bash
+cd backend/evals
+python eval.py
+```
