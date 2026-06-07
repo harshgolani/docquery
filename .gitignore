@@ -37,3 +37,4 @@ build/
 
 # Jupyter
 .ipynb_checkpoints/
+eval_results.json
